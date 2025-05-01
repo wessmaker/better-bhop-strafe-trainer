@@ -9,7 +9,7 @@
 
 #define TRAINER_TICK_INTERVAL 7	// This could be dymanicly controlled by the client
 
-FLOAT g_fClientLastAngle[MAXPLAYERS + 1] = 0;
+float g_fClientLastAngle[MAXPLAYERS + 1] = 0;
 Handle g_hStrafeTrainerCookie;
 
 int g_iClientTickCount[MAXPLAYERS + 1];
@@ -26,9 +26,10 @@ public Plugin myinfo =
 };
 
 
+
 public void OnPluginStart()
 {	
-	Engine g_Game = GetEngineVersion();
+	EngineVersion g_Game = GetEngineVersion();
 	if(g_Game != Engine_CSGO && g_Game != Engine_CSS)
 	{
 		SetFailState("Wrong engine found! This plugin is for CSGO/CSS only.");	
@@ -84,7 +85,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if (g_bStrafeTrainer[client] && (GetEntityMoveType(client) == MOVETYPE_NOCLIP) || (GetEntityMoveType(client) == MOVETYPE_LADDER))
 		return Plugin_Continue; // dont run when disabled
 	
-	int avgGain = 0;
 	if (g_iClientTickCount[client] < TRAINER_TICK_INTERVAL)
 	{
 		// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed for given tick 
@@ -102,20 +102,19 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		gainSum += g_fClientGains[client][i];
 		g_fClientGains[client][i] = 0.0;
 	}
-	int avgGain = RoundFloat(gainSum / TRAINER_TICK_INTERVAL);
 	g_iClientTickCount[client] = 0;	
 
-	RenderGainSlider(avgGain); // Render classic gain slider on screen
+	RenderGainSlider(RoundFloat(gainSum / TRAINER_TICK_INTERVAL), client); // Render classic gain slider on screen using average gain
 }
 
 
-void RenderGainSlider(int gain)
+void RenderGainSlider(int gain, int client)
 {
 	char gainSliderStr[32];
 	int maxLength = sizeof(gainSliderStr);
 	if (gain && gain <= 100)
 	{
-		int spaceCount = RoundFloat(gain * 2 / 3);
+		int spaceCount = RoundFloat(float(gain) * 2 / 3);
 		for (int i = 0; i <= spaceCount + 1; i++)
 		{
 			FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
@@ -126,14 +125,19 @@ void RenderGainSlider(int gain)
 			FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
 		}
 	}
-	else
+	else if (!gain)
 	{
-		Format(gainSliderStr, maxLength, "%s", percentage < 1.0 ? "|                   " : "                    |");
+		Format(gainSliderStr, maxLength, "%s", "|                   ");
+		
+	}
+	else	// Gain = 100
+	{
+		Format(gainSliderStr, maxLength, "%s", "                   |");
 	}
 
 
 	char sMessage[256];
-	Format(sMessage, sizeof(sMessage), "%d%", avgGain);
+	Format(sMessage, sizeof(sMessage), "%d%", gain);
 	Format(sMessage, sizeof(sMessage), "%s\n  ════^════  ", sMessage);	//This could and should be cached
 	Format(sMessage, sizeof(sMessage), "%s\n %s ", sMessage, gainSliderStr);
 	Format(sMessage, sizeof(sMessage), "%s\n  ════^════  ", sMessage);
@@ -141,22 +145,19 @@ void RenderGainSlider(int gain)
 	Handle hText = CreateHudSynchronizer();
 	if(hText != INVALID_HANDLE)
 	{
-		int rgb[3] = GetGainRGB(avgGain);
+		int rgb[3];
+		if (gain > 95.0) rgb = {0, 255, 0};		// Green
+		else if (gain > 90) rgb = {128, 255, 0}; 	// Yellow-Green
+		else if (gain < 75) rgb = {255, 255, 0};	// Yellow
+		else if (gain < 50) rgb = {255, 128, 0};	// Orange
+		else rgb = {255, 0, 0};				// Red	
+
 		SetHudTextParams(-1.0, 0.2, 0.1, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.1); //This could have customisation for position
 		ShowSyncHudText(client, hText, sMessage);
 		CloseHandle(hText);
 	}
 }
 
-
-int[] GetGainRGB(int percentage)
-{
-	if (percentage > 95.0) return {0, 255, 0};	// Green
-	else if (percentage > 90) return {128, 255, 0}; // Yellow-Green
-	else if (percentage < 75) return {255, 255, 0}; // Yellow
-	else if (percentage < 50) return {255, 128, 0};	// Orange
-	else return {255, 0, 0};			// Red
-}
 
 
 float GetPerfectStrafeAngle(float speed)
