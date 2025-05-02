@@ -74,14 +74,13 @@ public Action Command_StrafeTrainer(int client, int args)
 
 float GetNormalizedAngle(float angle)
 {
-
 	float newAngle = angle;
 	while (newAngle <= -180.0) newAngle += 360.0;
 	while (newAngle > 180.0) newAngle -= 360.0;
 	return newAngle;
 }
 
-float GetClientVelocity(int client)
+float GetVelocity(int client)
 {
 	float vecVelocity[2];
 	vecVelocity[0] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[0]");
@@ -100,20 +99,17 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		return Plugin_Continue;
 	}
 
+	float currentGain = 0.0;
+
+	// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed for given tick 
+	// Simply: Δangle / perfAngle
+	if(GetEntityFlags(client) & FL_ONGROUND) currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
+	else currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(GetVelocity(client)) * 100;
+	
+
 	if (g_iClientTicks[client] < GAIN_CALCULATION_INTERVAL)
 	{
-		if(GetEntityFlags(client) & FL_ONGROUND)
-		{
-			g_fClientGains[client][g_iClientTicks[client]] = 
-				FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
-		}
-		else
-		{
-			// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed for given tick 
-			// Simply: Δangle / perfAngle
-			g_fClientGains[client][g_iClientTicks[client]] = 
-				FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(GetClientVelocity(client)) * 100;	
-		}
+		g_fClientGains[client][g_iClientTicks[client]] = currentGain;
 		g_iClientTicks[client]++;		// Increment client's tick count	
 		g_fClientLastAngle[client] = angles[1];	// Capture client's last angle
 	} 
@@ -125,10 +121,37 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			gainSum += g_fClientGains[client][i];
 			g_fClientGains[client][i] = 0.0;
 		}
+		DrawStrafeTarget(RoundFloat(currentGain), GetVelocity(client), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
 		DrawGainSlider(RoundFloat(gainSum / GAIN_CALCULATION_INTERVAL), client);  // Render classic gain slider on screen using average gain
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
 }	
+
+void DrawStrafeTarget(int gain, float velocity, float angleDiff, int client)
+{
+	float x;
+	float targetPosMultiplier = FloatAbs(angleDiff / GetPerfectStrafeAngle(velocity));
+	char sMessage[4];
+	
+	if(angleDiff > 0) x = 0.25 * targetPosMultiplier + 0.25;	//Left
+	else if (angleDiff < 0)	x = 0.75 - (0.25 * targetPosMultiplier);//Right
+
+	Format(sMessage, sizeof(sMessage), "| |");
+	Handle hText = CreateHudSynchronizer();
+	float perfAngle = GetPerfectStrafeAngle(velocity);
+	if(hText != INVALID_HANDLE && x)
+	{
+		int rgb[3];
+		if (g_iGainExcellent <= gain <= 200 - g_iGainExcellent) rgb = {0, 255, 255};	// Cyan
+		else if (g_iGainGood <= gain <= 200 - g_iGainGood) rgb = {0, 255, 0}; 		// Green
+		else if(g_iGainBad <= gain <= 200 - g_iGainBad) rgb = {255, 0, 0};		// Red
+		else rgb = {127, 127, 127};							// Gray	
+
+		SetHudTextParams(x, -1.0, 0.1, 255, 127, 0, 255, 0, 0.0, 0.0, 0.05);
+		ShowSyncHudText(client, hText, sMessage);
+		CloseHandle(hText);
+	}
+}
 
 void DrawGainSlider(int gain, int client)
 {
@@ -164,20 +187,29 @@ void DrawGainSlider(int gain, int client)
 	{
 		int rgb[3];
 		if (g_iGainExcellent <= gain <= 200 - g_iGainExcellent) rgb = {0, 255, 255};	// Cyan
-		else if (g_iGainGood <= gain <= 200 - g_iGainGood) rgb = {0, 255, 0}; 	// Green
+		else if (g_iGainGood <= gain <= 200 - g_iGainGood) rgb = {0, 255, 0}; 		// Green
 		else if(g_iGainBad <= gain <= 200 - g_iGainBad) rgb = {255, 0, 0};		// Red
-		else rgb = {127, 127, 127};						// Gray	
+		else rgb = {127, 127, 127};							// Gray	
 
-		SetHudTextParams(-1.0, 0.2, 0.1, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.1); //This could have customisation for position
+		SetHudTextParams(-1.0, 0.2, 0.08, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.05, 0.05); //This could have customisation for position
 		ShowSyncHudText(client, hText, sMessage);
 		CloseHandle(hText);
 	}
 }
 
-float GetPerfectStrafeAngle(float speed)
+
+//Ty shavit
+float GetAngleDiff(float current, float previous)
+{
+	float diff = current - previous;
+	return diff - 360.0 * RoundToFloor((diff + 180.0) / 360.0);
+}
+
+
+float GetPerfectStrafeAngle(float velocity)
 {
 	//30 is the maximium wish_speed in source engine
-	return RadToDeg(ArcTangent(30 / speed));
+	return RadToDeg(ArcTangent(30 / velocity));
 }
 
 stock bool GetClientCookieBool(int client)
