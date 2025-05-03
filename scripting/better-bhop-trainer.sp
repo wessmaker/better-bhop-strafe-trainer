@@ -24,8 +24,7 @@ float g_fClientLastAngle[MAXPLAYERS + 1];
 Handle g_hStrafeTrainerCookie;
 
 int g_iClientTicks[MAXPLAYERS + 1];
-int g_iClientStyle[MAXPLAYERS + 1];
-float g_fClientGainSum[MAXPLAYERS + 1];
+float g_fClientGains[MAXPLAYERS + 1][GAIN_CALCULATION_INTERVAL];
 bool g_bClientTrainerEnabled[MAXPLAYERS + 1] = {false, ...};
 
 int g_iGainExcellent = 85;
@@ -119,9 +118,14 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	} 
 	else
 	{
-		DrawGainSlider(RoundFloat(g_fClientGainSum[client] / GAIN_CALCULATION_INTERVAL), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
-		DrawStrafeTarget(RoundFloat(g_fClientGainSum[client] / GAIN_CALCULATION_INTERVAL), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
-		g_fClientGainSum[client] = 0.0;
+		float gainSum = 0.0;
+		for (int i = 0; i < GAIN_CALCULATION_INTERVAL; i++)
+		{
+			gainSum += g_fClientGains[client][i];
+			g_fClientGains[client][i] = 0.0;
+		}
+		DrawStrafeTarget(RoundFloat(currentGain), GetVelocity(client), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
+		DrawGainSlider(RoundFloat(gainSum / GAIN_CALCULATION_INTERVAL), client);  // Render classic gain slider on screen using average gain
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
 }	
