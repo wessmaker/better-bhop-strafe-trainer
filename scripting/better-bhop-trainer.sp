@@ -7,7 +7,7 @@
 
 #pragma newdecls required
 
-#define GAIN_CALCULATION_INTERVAL 10
+#define GAIN_CALCULATION_INTERVAL 9
 
 /** 
  * 1.302 was found to be number close enough without using specific formula
@@ -24,6 +24,7 @@ float g_fClientLastAngle[MAXPLAYERS + 1];
 Handle g_hStrafeTrainerCookie;
 
 int g_iClientTicks[MAXPLAYERS + 1];
+int g_iClientStyle[MAXPLAYERS + 1];
 float g_fClientGainSum[MAXPLAYERS + 1];
 bool g_bClientTrainerEnabled[MAXPLAYERS + 1] = {false, ...};
 
@@ -60,6 +61,7 @@ public void OnPluginStart()
 	}
 }
 
+
 public Action Command_StrafeTrainer(int client, int args)
 {
 	if (client != 0)
@@ -72,6 +74,7 @@ public Action Command_StrafeTrainer(int client, int args)
 	return Plugin_Handled;
 }
 
+
 float GetNormalizedAngle(float angle)
 {
 	float newAngle = angle;
@@ -80,6 +83,7 @@ float GetNormalizedAngle(float angle)
 	return newAngle;
 }
 
+
 float GetVelocity(int client)
 {
 	float vecVelocity[2];
@@ -87,6 +91,7 @@ float GetVelocity(int client)
 	vecVelocity[1] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[1]");
 	return SquareRoot(vecVelocity[0] * vecVelocity[0] + vecVelocity[1] * vecVelocity[1]);
 }
+
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
@@ -105,7 +110,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	// Simply: Δangle / perfAngle
 	if(GetEntityFlags(client) & FL_ONGROUND) currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
 	else currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(GetVelocity(client)) * 100;
-	
 
 	if (g_iClientTicks[client] < GAIN_CALCULATION_INTERVAL)
 	{
@@ -115,26 +119,68 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	} 
 	else
 	{
-		DrawStrafeTarget(RoundFloat(g_fClientGainSum / GAIN_CALCULATION_INTERVAL), GetVelocity(client), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
-		DrawGainSlider(RoundFloat(g_fClientGainSum / GAIN_CALCULATION_INTERVAL), client);  // Render classic gain slider on screen using average gain
+		DrawGainSlider(RoundFloat(g_fClientGainSum[client] / GAIN_CALCULATION_INTERVAL), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
+		DrawStrafeTarget(RoundFloat(g_fClientGainSum[client] / GAIN_CALCULATION_INTERVAL), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
 		g_fClientGainSum[client] = 0.0;
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
 }	
 
-void DrawStrafeTarget(int gain, float velocity, float angleDiff, int client)
-{
-	float x;
-	float targetPosMultiplier = FloatAbs(angleDiff / GetPerfectStrafeAngle(velocity));
-	char sMessage[4];
-	
-	if(angleDiff > 0) x = 0.25 * targetPosMultiplier + 0.25;	//Left
-	else if (angleDiff < 0)	x = 0.75 - (0.25 * targetPosMultiplier);//Right
 
-	Format(sMessage, sizeof(sMessage), "| |");
+void DrawStrafeTarget(int gain, float angleDiff, int client)
+{
+	char gainSliderStr[32];
+
+	int maxLength = sizeof(gainSliderStr);
+	int spaceCount = RoundFloat((float(gain) - 50) / 5);
+	if(angleDiff > 0) 	//Left
+	{
+		if (50 <= gain <= 150)
+		{
+			for (int i = 0; i <= (21 - spaceCount); i++)
+			{
+				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			}
+			FormatEx(gainSliderStr, maxLength, "%s< >", gainSliderStr);
+			for (int i = 0; i <= spaceCount + 1; i++)
+			{
+				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			}
+	
+		}
+		else
+		{
+			Format(gainSliderStr, maxLength, "%s","                 < >");
+		}
+	}
+	else if (angleDiff < 0)	//Right
+	{
+		if (50 <= gain <= 150)
+		{
+			for (int i = 0; i <= spaceCount + 1; i++)
+			{
+				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			}
+			FormatEx(gainSliderStr, maxLength, "%s< >", gainSliderStr);
+			for (int i = 0; i <= (21 - spaceCount); i++)
+			{
+				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			}
+		}
+		else
+		{
+			Format(gainSliderStr, maxLength, "%s","< >                 ");
+		}
+	}
+
+	char sMessage[256];
+	Format(sMessage, sizeof(sMessage), "%s\n  ═════════  ", sMessage);
+	Format(sMessage, sizeof(sMessage), "%s\n %s ", sMessage, gainSliderStr);
+	Format(sMessage, sizeof(sMessage), "%s\n  ═════════  \n", sMessage);
+	Format(sMessage, sizeof(sMessage), "%s	%i%%%", sMessage, gain);
+
 	Handle hText = CreateHudSynchronizer();
-	float perfAngle = GetPerfectStrafeAngle(velocity);
-	if(hText != INVALID_HANDLE && x)
+	if(hText != INVALID_HANDLE)
 	{
 		int rgb[3];
 		if (g_iGainExcellent <= gain <= 200 - g_iGainExcellent) rgb = {0, 255, 255};	// Cyan
@@ -142,33 +188,75 @@ void DrawStrafeTarget(int gain, float velocity, float angleDiff, int client)
 		else if(g_iGainBad <= gain <= 200 - g_iGainBad) rgb = {255, 0, 0};		// Red
 		else rgb = {127, 127, 127};							// Gray	
 
-		SetHudTextParams(x, -1.0, 0.1, 255, 127, 0, 255, 0, 0.0, 0.0, 0.05);
+		SetHudTextParams(-1.0, 0.406, 0.09, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.09);
 		ShowSyncHudText(client, hText, sMessage);
 		CloseHandle(hText);
 	}
 }
 
-void DrawGainSlider(int gain, int client)
+
+void DrawGainSlider(int gain, float angleDiff, int client)
 {
 	char gainSliderStr[32];
 	int maxLength = sizeof(gainSliderStr);
 	if (50 <= gain <= 150)
 	{
 		int spaceCount = RoundFloat((float(gain) - 50) / 5);
-		for (int i = 0; i <= spaceCount + 1; i++)
+		if(g_iClientStyle[client] == 1)
 		{
-			FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			for (int i = 0; i <= spaceCount + 1; i++)
+			{
+				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			}
+			FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
+			for (int i = 0; i <= (21 - spaceCount); i++)
+			{
+				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			}
 		}
-		FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
-		for (int i = 0; i <= (21 - spaceCount); i++)
+		else if(g_iClientStyle[client] == 0)
 		{
-			FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+			if(angleDiff > 0) 	//Left
+			{
+				for (int i = 0; i <= (21 - spaceCount); i++)
+				{
+					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+				}
+				FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
+				for (int i = 0; i <= spaceCount + 1; i++)
+				{
+					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+				}
+			}
+			else if (angleDiff < 0)	//Right
+			{
+				for (int i = 0; i <= spaceCount + 1; i++)
+				{
+					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+				}
+				FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
+				for (int i = 0; i <= (21 - spaceCount); i++)
+				{
+					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+				}
+			}
 		}
 	}
 	else
 	{
-		// Draw slider at max or min
-		Format(gainSliderStr, maxLength, "%s", gain > 150 ? "                   |" : "|                   ");
+		if(g_iClientStyle[client] == 1)
+		{
+			Format(gainSliderStr, maxLength, "%s", gain > 150 ? "                   |" : "|                   ");	
+		}
+		else if(g_iClientStyle[client] == 0 && angleDiff < 0)
+		{
+			Format(gainSliderStr, maxLength, "%s", "|                   ");	
+			
+		}
+		else if(g_iClientStyle[client] == 0 && angleDiff > 0)
+		{
+			Format(gainSliderStr, maxLength, "%s", "                   |");	
+		}
 	}
 
 	char sMessage[256];
@@ -186,14 +274,14 @@ void DrawGainSlider(int gain, int client)
 		else if(g_iGainBad <= gain <= 200 - g_iGainBad) rgb = {255, 0, 0};		// Red
 		else rgb = {127, 127, 127};							// Gray	
 
-		SetHudTextParams(-1.0, 0.2, 0.08, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.05, 0.05); //This could have customisation for position
+		SetHudTextParams(-1.0, 0.2, 0.09, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.09);
 		ShowSyncHudText(client, hText, sMessage);
 		CloseHandle(hText);
 	}
 }
 
 
-//Ty shavit
+//Stoled from shavit's code 
 float GetAngleDiff(float current, float previous)
 {
 	float diff = current - previous;
