@@ -115,7 +115,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	} 
 	else
 	{
-		DrawStrafeTarget(RoundFloat(currentGain), GetVelocity(client), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
+		DrawStrafeTarget(RoundFloat(g_fClientGainSum / GAIN_CALCULATION_INTERVAL), GetVelocity(client), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
 		DrawGainSlider(RoundFloat(g_fClientGainSum / GAIN_CALCULATION_INTERVAL), client);  // Render classic gain slider on screen using average gain
 		g_fClientGainSum[client] = 0.0;
 		g_iClientTicks[client] = 0;	// Reset client's tick count
