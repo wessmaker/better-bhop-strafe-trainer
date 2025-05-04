@@ -18,7 +18,9 @@
  * gain: 100.073097, speed 289.944824
  * gain: 100.072746, speed 289.944763
 */
-#define PERFECT_PRESTRAFE_ANGLE 1.302
+
+//Ty YvngxChrig from SJ discord
+#define PERFECT_PRESTRAFE_ANGLE 1.18446555905
 
 float g_fClientLastAngle[MAXPLAYERS + 1];
 Handle g_hStrafeTrainerCookie;
@@ -110,7 +112,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	// Simply: Δangle / perfAngle
 	if(GetEntityFlags(client) & FL_ONGROUND) currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
 	else currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(GetVelocity(client)) * 100;
-
 	if (g_iClientTicks[client] < GAIN_CALCULATION_INTERVAL)
 	{
 		g_fClientGainSum[client] += currentGain;
@@ -119,8 +120,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	} 
 	else
 	{
-		DrawGainSlider(RoundFloat(g_fClientGainSum[client] / GAIN_CALCULATION_INTERVAL), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
-		DrawStrafeTarget(RoundFloat(g_fClientGainSum[client] / GAIN_CALCULATION_INTERVAL), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
+		DrawGainSlider(RoundFloat(g_fClientGainSum[client] / (g_iClientTicks[client] + 1)), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
+		DrawStrafeTarget(RoundFloat(g_fClientGainSum[client] / (g_iClientTicks[client] + 1)), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
 		g_fClientGainSum[client] = 0.0;
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
@@ -141,7 +142,7 @@ void DrawStrafeTarget(int gain, float angleDiff, int client)
 			{
 				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
 			}
-			FormatEx(gainSliderStr, maxLength, "%s< >", gainSliderStr);
+			FormatEx(gainSliderStr, maxLength, "%s<>", gainSliderStr);
 			for (int i = 0; i <= spaceCount + 1; i++)
 			{
 				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
@@ -150,7 +151,7 @@ void DrawStrafeTarget(int gain, float angleDiff, int client)
 		}
 		else
 		{
-			Format(gainSliderStr, maxLength, "%s","                 < >");
+			Format(gainSliderStr, maxLength, "%s","                  <>");
 		}
 	}
 	else if (angleDiff < 0)	//Right
@@ -161,7 +162,7 @@ void DrawStrafeTarget(int gain, float angleDiff, int client)
 			{
 				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
 			}
-			FormatEx(gainSliderStr, maxLength, "%s< >", gainSliderStr);
+			FormatEx(gainSliderStr, maxLength, "%s<>", gainSliderStr);
 			for (int i = 0; i <= (21 - spaceCount); i++)
 			{
 				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
@@ -169,7 +170,7 @@ void DrawStrafeTarget(int gain, float angleDiff, int client)
 		}
 		else
 		{
-			Format(gainSliderStr, maxLength, "%s","< >                 ");
+			Format(gainSliderStr, maxLength, "%s","<>                  ");
 		}
 	}
 
@@ -281,7 +282,7 @@ void DrawGainSlider(int gain, float angleDiff, int client)
 }
 
 
-//Stoled from shavit's code 
+//Stoled from shavit's timer code 
 float GetAngleDiff(float current, float previous)
 {
 	float diff = current - previous;
