@@ -45,7 +45,6 @@ public Plugin myinfo =
 };
 
 
-
 public void OnPluginStart()
 {	
 	EngineVersion g_Game = GetEngineVersion();
@@ -58,6 +57,7 @@ public void OnPluginStart()
 	g_hTrainerModeCookie = RegClientCookie("strafetrainer_mode", "strafetrainer_mode", CookieAccess_Protected);
 }
 
+
 public void OnClientCookiesCached(int client)
 {
 	char sValue[8];
@@ -68,6 +68,7 @@ public void OnClientCookiesCached(int client)
 	if(StringToInt(sValue)) g_hTrainerModeCookie = StringToInt(sValue);
 
 }
+
 
 public Action Command_StrafeTrainer(int client, int args)
 {
@@ -132,8 +133,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 }	
 
 
-
-
 void DrawTrainerHUD(int gain, float angleDiff, int client)
 {
 	char trainerStr[32];
@@ -157,29 +156,29 @@ void DrawTrainerHUD(int gain, float angleDiff, int client)
 	}
 	else	// Slider or target from the opposite direction of turning
 	{
-		char targetOrSliderStr[2] = (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? "|" : "<>";
+		char targetOrSliderStr[2] = (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? " |" : "<>";
 		if (50 <= gain <= 150)
 		{
 			if(angleDiff > 0) 	//Turning left
 			{
-				for (int i = 0; i <= (targetOrSliderStr == "|" ? 21 : 20) - spaceCount; i++)
+				for (int i = 0; i <= 20 - spaceCount; i++)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
 				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Insert "|" or <>
-				for (int i = 0; i <= spaceCount + (targetOrSliderStr == "|" ? 1 : 0); i++)
+				for (int i = 0; i <= spaceCount; i++)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
 			}
 			else if (angleDiff < 0)	//Turning right
 			{
-				for (int i = 0; i <= spaceCount + (targetOrSliderStr == "|" ? 1 : 0); i++)
+				for (int i = 0; i <= spaceCount; i++)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
 				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Insert "|" or "<>"
-				for (int i = 0; i <= (targetOrSliderStr == "|" ? 21 : 20); i++)
+				for (int i = 0; i <= 20 - spaceCount; i++)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
@@ -230,7 +229,6 @@ float GetPerfectStrafeAngle(float velocity)
 }
 
 
-
 stock void SetClientCookieBool(int client, Handle cookie, bool value)
 {
 	char sValue[8];
@@ -241,4 +239,3 @@ public void OnClientDisconnect(int client)
 {
 	g_bClientTrainerEnabled[client] = false;
 }
-
