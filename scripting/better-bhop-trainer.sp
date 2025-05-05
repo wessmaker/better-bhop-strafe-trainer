@@ -9,26 +9,27 @@
 
 #define GAIN_CALCULATION_INTERVAL 9
 
-/** 
- * 1.302 was found to be number close enough without using specific formula
- * When sv_airaccelerate 1000, cl_yawspeed 118.45, +right and pressing W & D these are prestrafing gains with perf angle of 1.302:
- * gain: 100.072990, speed 289.944793
- * gain: 100.073066, speed 289.944793
- * gain: 100.072921, speed 289.944793
- * gain: 100.073097, speed 289.944824
- * gain: 100.072746, speed 289.944763
-*/
-
-//Ty YvngxChrig from SJ discord
+//Ty YvngxChrig for supplying this magic number on SJ discord
 #define PERFECT_PRESTRAFE_ANGLE 1.18446555905
 
-float g_fClientLastAngle[MAXPLAYERS + 1];
-Handle g_hStrafeTrainerCookie;
+enum TrainerMode 
+{
+	CLASSIC = 1,
+	SLIDER_UPPER = 2,
+	SLIDER_LOWER = 3,
+	TARGET_UPPER = 4,
+	TARGET_MIDDLE = 5
+}
 
-int g_iClientTicks[MAXPLAYERS + 1];
-int g_iClientStyle[MAXPLAYERS + 1];
-float g_fClientGainSum[MAXPLAYERS + 1];
+Handle g_hTainerEnabledCookie;
+Handle g_hTrainerModeCookie;
+
 bool g_bClientTrainerEnabled[MAXPLAYERS + 1] = {false, ...};
+bool g_bClientTrainerMode[MAXPLAYERS + 1] = {CLASSIC, ...};
+
+float g_fClientLastAngle[MAXPLAYERS + 1];
+int g_iClientTicks[MAXPLAYERS + 1];
+float g_fClientGainSum[MAXPLAYERS + 1];
 
 int g_iGainExcellent = 85;
 int g_iGainGood = 70;
@@ -53,23 +54,27 @@ public void OnPluginStart()
 		SetFailState("Wrong engine found! This plugin is for CSGO/CSS only.");	
 	}
 	RegConsoleCmd("sm_strafetrainer", Command_StrafeTrainer, "Toggles the strafe trainer.");
-	g_hStrafeTrainerCookie = RegClientCookie("strafetrainer_enabled", "strafetrainer_enabled", CookieAccess_Protected);
-	for(int i = 1; i <= MaxClients; i++)
-	{
-		if(AreClientCookiesCached(i))
-		{
-			OnClientCookiesCached(i);
-		}
-	}
+	g_hTainerEnabledCookie = RegClientCookie("trainer_enabled", "trainer_enabled", CookieAccess_Protected);
+	g_hTrainerModeCookie = RegClientCookie("strafetrainer_mode", "strafetrainer_mode", CookieAccess_Protected);
 }
 
+public void OnClientCookiesCached(int client)
+{
+	char sValue[8];
+	GetClientCookie(client, g_hTainerEnabledCookie, sValue, sizeof(sValue));
+	if(StringToInt(sValue)) g_bClientTrainerEnabled = StringToInt(sValue);
+
+	GetClientCookie(client, g_hTrainerModeCookie, sValue, sizeof(sValue));
+	if(StringToInt(sValue)) g_hTrainerModeCookie = StringToInt(sValue);
+
+}
 
 public Action Command_StrafeTrainer(int client, int args)
 {
 	if (client != 0)
 	{
 		g_bClientTrainerEnabled[client] = !g_bClientTrainerEnabled[client];
-		SetClientCookieBool(client, g_hStrafeTrainerCookie, g_bClientTrainerEnabled[client]);
+		SetClientCookie(client, g_hTainerEnabledCookie, g_bClientTrainerEnabled[client]);
 		ReplyToCommand(client, "[SM] Strafe Trainer %s!", g_bClientTrainerEnabled[client] ? "enabled" : "disabled");
 	}
 	else ReplyToCommand(client, "[SM] Invalid client!");
@@ -120,144 +125,72 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	} 
 	else
 	{
-		DrawGainSlider(RoundFloat(g_fClientGainSum[client] / (g_iClientTicks[client] + 1)), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
-		DrawStrafeTarget(RoundFloat(g_fClientGainSum[client] / (g_iClientTicks[client] + 1)), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
+		DrawTrainerHUD(RoundFloat(g_fClientGainSum[client] / (g_iClientTicks[client] + 1)), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
 		g_fClientGainSum[client] = 0.0;
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
 }	
 
 
-void DrawStrafeTarget(int gain, float angleDiff, int client)
-{
-	char gainSliderStr[32];
 
-	int maxLength = sizeof(gainSliderStr);
+
+void DrawTrainerHUD(int gain, float angleDiff, int client)
+{
+	char trainerStr[32];
+	int maxLength = sizeof(trainerStr);
 	int spaceCount = RoundFloat((float(gain) - 50) / 5);
-	if(angleDiff > 0) 	//Left
-	{
-		if (50 <= gain <= 150)
-		{
-			for (int i = 0; i <= (21 - spaceCount); i++)
-			{
-				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-			}
-			FormatEx(gainSliderStr, maxLength, "%s<>", gainSliderStr);
-			for (int i = 0; i <= spaceCount + 1; i++)
-			{
-				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-			}
-	
-		}
-		else
-		{
-			Format(gainSliderStr, maxLength, "%s","                  <>");
-		}
-	}
-	else if (angleDiff < 0)	//Right
+	if(g_bClientTrainerMode == CLASSIC) // Slider from left to right
 	{
 		if (50 <= gain <= 150)
 		{
 			for (int i = 0; i <= spaceCount + 1; i++)
 			{
-				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+				FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 			}
-			FormatEx(gainSliderStr, maxLength, "%s<>", gainSliderStr);
+			FormatEx(trainerStr, maxLength, "%s<>", trainerStr);
 			for (int i = 0; i <= (21 - spaceCount); i++)
 			{
-				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
+				FormatEx(trainerStr, maxLength, "%s ", trainerStr);
+			}
+		}
+		else FormatEx(trainerStr, maxLength, "%s", gain > 150 ? "                   |" : "|                   ");
+	}
+	else	// Slider or target from the opposite direction of turning
+	{
+		char targetOrSliderStr[2] = (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? "|" : "<>";
+		if (50 <= gain <= 150)
+		{
+			if(angleDiff > 0) 	//Turning left
+			{
+				for (int i = 0; i <= (targetOrSliderStr == "|" ? 21 : 20) - spaceCount; i++)
+				{
+					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
+				}
+				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Insert "|" or <>
+				for (int i = 0; i <= spaceCount + (targetOrSliderStr == "|" ? 1 : 0); i++)
+				{
+					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
+				}
+			}
+			else if (angleDiff < 0)	//Turning right
+			{
+				for (int i = 0; i <= spaceCount + (targetOrSliderStr == "|" ? 1 : 0); i++)
+				{
+					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
+				}
+				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Insert "|" or "<>"
+				for (int i = 0; i <= (targetOrSliderStr == "|" ? 21 : 20); i++)
+				{
+					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
+				}
 			}
 		}
 		else
-		{
-			Format(gainSliderStr, maxLength, "%s","<>                  ");
-		}
-	}
-
-	char sMessage[256];
-	Format(sMessage, sizeof(sMessage), "%s\n  ═════════  ", sMessage);
-	Format(sMessage, sizeof(sMessage), "%s\n %s ", sMessage, gainSliderStr);
-	Format(sMessage, sizeof(sMessage), "%s\n  ═════════  \n", sMessage);
-	Format(sMessage, sizeof(sMessage), "%s	%i%%%", sMessage, gain);
-
-	Handle hText = CreateHudSynchronizer();
-	if(hText != INVALID_HANDLE)
-	{
-		int rgb[3];
-		if (g_iGainExcellent <= gain <= 200 - g_iGainExcellent) rgb = {0, 255, 255};	// Cyan
-		else if (g_iGainGood <= gain <= 200 - g_iGainGood) rgb = {0, 255, 0}; 		// Green
-		else if(g_iGainBad <= gain <= 200 - g_iGainBad) rgb = {255, 0, 0};		// Red
-		else rgb = {127, 127, 127};							// Gray	
-
-		SetHudTextParams(-1.0, 0.406, 0.09, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.09);
-		ShowSyncHudText(client, hText, sMessage);
-		CloseHandle(hText);
-	}
-}
-
-
-void DrawGainSlider(int gain, float angleDiff, int client)
-{
-	char gainSliderStr[32];
-	int maxLength = sizeof(gainSliderStr);
-	if (50 <= gain <= 150)
-	{
-		int spaceCount = RoundFloat((float(gain) - 50) / 5);
-		if(g_iClientStyle[client] == 1)
-		{
-			for (int i = 0; i <= spaceCount + 1; i++)
-			{
-				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-			}
-			FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
-			for (int i = 0; i <= (21 - spaceCount); i++)
-			{
-				FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-			}
-		}
-		else if(g_iClientStyle[client] == 0)
-		{
-			if(angleDiff > 0) 	//Left
-			{
-				for (int i = 0; i <= (21 - spaceCount); i++)
-				{
-					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-				}
-				FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
-				for (int i = 0; i <= spaceCount + 1; i++)
-				{
-					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-				}
-			}
-			else if (angleDiff < 0)	//Right
-			{
-				for (int i = 0; i <= spaceCount + 1; i++)
-				{
-					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-				}
-				FormatEx(gainSliderStr, maxLength, "%s|", gainSliderStr);
-				for (int i = 0; i <= (21 - spaceCount); i++)
-				{
-					FormatEx(gainSliderStr, maxLength, "%s ", gainSliderStr);
-				}
-			}
-		}
-	}
-	else
-	{
-		if(g_iClientStyle[client] == 1)
-		{
-			Format(gainSliderStr, maxLength, "%s", gain > 150 ? "                   |" : "|                   ");	
-		}
-		else if(g_iClientStyle[client] == 0 && angleDiff < 0)
-		{
-			Format(gainSliderStr, maxLength, "%s", "|                   ");	
-			
-		}
-		else if(g_iClientStyle[client] == 0 && angleDiff > 0)
-		{
-			Format(gainSliderStr, maxLength, "%s", "                   |");	
-		}
+		{	//Turning right with too low gain or turning left with too high gain
+			if((angleDiff < 0 && gain < 50) || (angleDiff > 0 && gain > 150)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? "|                   " : "<>                  ");
+			//Turning left with too low gain or turning right with too high gain
+			else if ((angleDiff > 0 && gain < 50) || (angleDiff < 0 && gain > 150)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? "                   |" : "                  <>");
+		} 
 	}
 
 	char sMessage[256];
@@ -296,18 +229,12 @@ float GetPerfectStrafeAngle(float velocity)
 	return RadToDeg(ArcTangent(30 / velocity));
 }
 
-stock bool GetClientCookieBool(int client)
-{
-	char sValue[8];
-	GetClientCookie(client, g_hStrafeTrainerCookie, sValue, sizeof(sValue));
-	return (sValue[0] != '\0' && StringToInt(sValue));
-}
+
 
 stock void SetClientCookieBool(int client, Handle cookie, bool value)
 {
 	char sValue[8];
 	IntToString(value, sValue, sizeof(sValue));
-	SetClientCookie(client, cookie, sValue);
 }
 
 public void OnClientDisconnect(int client)
@@ -315,7 +242,3 @@ public void OnClientDisconnect(int client)
 	g_bClientTrainerEnabled[client] = false;
 }
 
-public void OnClientCookiesCached(int client)
-{
-	g_bClientTrainerEnabled[client] = GetClientCookieBool(client);
-}
