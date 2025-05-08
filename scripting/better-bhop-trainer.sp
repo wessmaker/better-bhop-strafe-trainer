@@ -7,33 +7,35 @@
 
 #pragma newdecls required
 
-#define GAIN_CALCULATION_INTERVAL 9
+#define CALCULATION_TICK_INTERVAL 8
 
 //Ty YvngxChrig for supplying this magic number on SJ discord
 #define PERFECT_PRESTRAFE_ANGLE 1.18446555905
 
 enum TrainerMode 
 {
-	CLASSIC = 1,
-	SLIDER_UPPER = 2,
-	SLIDER_LOWER = 3,
-	TARGET_UPPER = 4,
-	TARGET_MIDDLE = 5
+	CLASSIC,
+	SLIDER_UPPER,
+	SLIDER_LOWER,
+	TARGET_UPPER,
+	TARGET_MIDDLE
 }
 
 Handle g_hTainerEnabledCookie;
 Handle g_hTrainerModeCookie;
 
 bool g_bClientTrainerEnabled[MAXPLAYERS + 1] = {false, ...};
-bool g_bClientTrainerMode[MAXPLAYERS + 1] = {CLASSIC, ...};
+TrainerMode g_bClientTrainerMode[MAXPLAYERS + 1] = {TARGET_UPPER, ...};
 
 float g_fClientLastAngle[MAXPLAYERS + 1];
+float g_fClientStrafeSpeedSum[MAXPLAYERS + 1];
 int g_iClientTicks[MAXPLAYERS + 1];
-float g_fClientGainSum[MAXPLAYERS + 1];
+float g_iClientTrainerYPos;
 
-int g_iGainExcellent = 85;
-int g_iGainGood = 70;
-int g_iGainBad = 60;
+int g_istrafeSpeedExcellent = 85;
+int g_istrafeSpeedGood = 70;
+int g_istrafeSpeedBad = 60;
+
 
 public Plugin myinfo = 
 {
@@ -48,11 +50,11 @@ public Plugin myinfo =
 public void OnPluginStart()
 {	
 	EngineVersion g_Game = GetEngineVersion();
-	if(g_Game != Engine_CSGO && g_Game != Engine_CSS)
+	if(!(g_Game != Engine_CSGO || g_Game != Engine_CSS))
 	{
 		SetFailState("Wrong engine found! This plugin is for CSGO/CSS only.");	
 	}
-	RegConsoleCmd("sm_strafetrainer", Command_StrafeTrainer, "Toggles the strafe trainer.");
+	RegConsoleCmd("sm_strafetrainer", Command_StrafeTrainer, "Usage: !strafetrainer [1|2|3|4|5].");
 	g_hTainerEnabledCookie = RegClientCookie("trainer_enabled", "trainer_enabled", CookieAccess_Protected);
 	g_hTrainerModeCookie = RegClientCookie("strafetrainer_mode", "strafetrainer_mode", CookieAccess_Protected);
 }
@@ -60,104 +62,139 @@ public void OnPluginStart()
 
 public void OnClientCookiesCached(int client)
 {
-	char sValue[8];
-	GetClientCookie(client, g_hTainerEnabledCookie, sValue, sizeof(sValue));
-	if(StringToInt(sValue)) g_bClientTrainerEnabled = StringToInt(sValue);
+	char cookieValue[1];
+	int cookieIntValue;
+	GetClientCookie(client, g_hTainerEnabledCookie, cookieValue, sizeof(cookieValue));
+	g_bClientTrainerEnabled[client] = StringToInt(cookieValue[0]) == 1;
 
-	GetClientCookie(client, g_hTrainerModeCookie, sValue, sizeof(sValue));
-	if(StringToInt(sValue)) g_hTrainerModeCookie = StringToInt(sValue);
-
+	GetClientCookie(client, g_hTrainerModeCookie, cookieValue, sizeof(cookieValue));
+	cookieIntValue = StringToInt(cookieValue[0]);
+	g_bClientTrainerMode[client] = 
+		cookieIntValue == 1 ? 	CLASSIC 	:
+		cookieIntValue == 2 ? 	SLIDER_UPPER 	:
+		cookieIntValue == 3 ? 	SLIDER_LOWER 	:
+		cookieIntValue == 4 ? 	TARGET_UPPER 	:
+		cookieIntValue == 5 ? 	TARGET_MIDDLE 	: 
+					CLASSIC;
 }
 
 
-public Action Command_StrafeTrainer(int client, int args)
+public Action Command_StrafeTrainer(int client, int argCount)
 {
-	if (client != 0)
+	if(argCount > 1)
 	{
-		g_bClientTrainerEnabled[client] = !g_bClientTrainerEnabled[client];
-		SetClientCookie(client, g_hTainerEnabledCookie, g_bClientTrainerEnabled[client]);
-		ReplyToCommand(client, "[SM] Strafe Trainer %s!", g_bClientTrainerEnabled[client] ? "enabled" : "disabled");
+		ReplyToCommand(client, "[SM] sm_strafetrainer accepts only one argument!");
+		return Plugin_Continue;
 	}
-	else ReplyToCommand(client, "[SM] Invalid client!");
-	return Plugin_Handled;
-}
+	if (client == 0) 
+	{
+		ReplyToCommand(client, "[SM] Strafe trainer not enabled due to invalid client!");
+		return Plugin_Handled;
+	}
+
+	char valueStr[8];
+	GetCmdArgString(valueStr, sizeof(valueStr));
+	int valueInt = StringToInt(valueStr);
+
+	if(!g_bClientTrainerEnabled[client] && valueInt == 0)
+	{
+		ReplyToCommand(client, "To enable strafe trainer add mode as argument to command! \n1 CLASSIC\n2 SLIDER_UPPER\n3 SLIDER_LOWER\n4 TARGET_UPPER\n5 TARGET_MIDDLE");
+		return Plugin_Handled;
+	}
+	else if (valueInt == 0)
+	{
+		g_bClientTrainerEnabled[client] = false;
+		SetClientCookie(client, g_hTainerEnabledCookie, "0");
+		ReplyToCommand(client, "[SM] Strafe Trainer disabled! %s", valueStr);
+		return Plugin_Handled;
+	}
+	
+
+	g_bClientTrainerEnabled[client] = true;
+	g_bClientTrainerMode[client] = 
+		valueInt == 1 ? 	CLASSIC 	:
+		valueInt == 2 ? 	SLIDER_UPPER 	:
+		valueInt == 3 ? 	SLIDER_LOWER 	:
+		valueInt == 4 ? 	TARGET_UPPER 	:
+		valueInt == 5 ? 	TARGET_MIDDLE 	: 
+					CLASSIC;
+	g_iClientTrainerYPos = 
+		g_bClientTrainerMode[client] == CLASSIC 	|| 
+		g_bClientTrainerMode[client] == SLIDER_UPPER 	|| 
+		g_bClientTrainerMode[client] == TARGET_UPPER 	? 0.15 : 0.405;
 
 
-float GetNormalizedAngle(float angle)
-{
-	float newAngle = angle;
-	while (newAngle <= -180.0) newAngle += 360.0;
-	while (newAngle > 180.0) newAngle -= 360.0;
-	return newAngle;
-}
+	SetClientCookie(client, g_hTrainerModeCookie, valueStr);
 
+	Format(valueStr, sizeof(valueStr), "%c", g_bClientTrainerEnabled[client] ? '1' : '0');
+	SetClientCookie(client, g_hTainerEnabledCookie, valueStr);
 
-float GetVelocity(int client)
-{
-	float vecVelocity[2];
-	vecVelocity[0] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[0]");
-	vecVelocity[1] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[1]");
-	return SquareRoot(vecVelocity[0] * vecVelocity[0] + vecVelocity[1] * vecVelocity[1]);
+	ReplyToCommand(client, "[SM] Strafe Trainer enabled! Mode: %s", 
+		g_bClientTrainerMode[client] == CLASSIC 	? 	"CLASSIC" 	: 
+		g_bClientTrainerMode[client] == SLIDER_UPPER 	? 	"SLIDER_UPPER"	: 
+		g_bClientTrainerMode[client] == SLIDER_LOWER 	? 	"SLIDER_LOWER"	: 
+		g_bClientTrainerMode[client] == TARGET_UPPER 	? 	"TARGET_UPPER"	: 
+		g_bClientTrainerMode[client] == TARGET_MIDDLE 	? 	"TARGET_MIDDLE" : 
+							 		"CLASSIC");
+	return Plugin_Continue;
 }
 
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
+	// Plugin is disabled for given client 
 	if(!g_bClientTrainerEnabled[client])
-	{
-		return Plugin_Continue;  // Plugin is disabled for given client 
-	}
+		return Plugin_Continue;  
 	if ((GetEntityMoveType(client) == MOVETYPE_NOCLIP) || (GetEntityMoveType(client) == MOVETYPE_LADDER))
-	{
 		return Plugin_Continue;
-	}
-
-	float currentGain = 0.0;
 
 	// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed for given tick 
 	// Simply: Δangle / perfAngle
-	if(GetEntityFlags(client) & FL_ONGROUND) currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
-	else currentGain = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(GetVelocity(client)) * 100;
-	if (g_iClientTicks[client] < GAIN_CALCULATION_INTERVAL)
+	float currentStrafeSpeed = 0.0;
+	if(GetEntityFlags(client) & FL_ONGROUND) currentStrafeSpeed = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
+	else currentStrafeSpeed = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(client) * 100;
+
+	if (g_iClientTicks[client] < CALCULATION_TICK_INTERVAL)
 	{
-		g_fClientGainSum[client] += currentGain;
+		g_fClientStrafeSpeedSum[client] += currentStrafeSpeed;
 		g_iClientTicks[client]++;		// Increment client's tick count	
-		g_fClientLastAngle[client] = angles[1];	// Capture client's last angle
 	} 
 	else
 	{
-		DrawTrainerHUD(RoundFloat(g_fClientGainSum[client] / (g_iClientTicks[client] + 1)), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);  // Render classic gain slider on screen using average gain
-		g_fClientGainSum[client] = 0.0;
+		DrawTrainerHUD(RoundFloat(g_fClientStrafeSpeedSum[client] / (g_iClientTicks[client])), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
+		g_fClientStrafeSpeedSum[client] = 0.0;
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
+	g_fClientLastAngle[client] = angles[1];	// Capture client's last angle
 }	
 
 
-void DrawTrainerHUD(int gain, float angleDiff, int client)
-{
+void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
+{	
 	char trainerStr[32];
 	int maxLength = sizeof(trainerStr);
-	int spaceCount = RoundFloat((float(gain) - 50) / 5);
-	if(g_bClientTrainerMode == CLASSIC) // Slider from left to right
+	int spaceCount = RoundFloat((float(strafeSpeed) - 50) / 5);
+	if(g_bClientTrainerMode[client] == CLASSIC) // Slider from left to right
 	{
-		if (50 <= gain <= 150)
+		if (50 <= strafeSpeed <= 150)
 		{
 			for (int i = 0; i <= spaceCount + 1; i++)
 			{
 				FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 			}
-			FormatEx(trainerStr, maxLength, "%s<>", trainerStr);
-			for (int i = 0; i <= (21 - spaceCount); i++)
+			FormatEx(trainerStr, maxLength, "%s|", trainerStr);
+			for (int i = 0; i <= (22 - spaceCount); i++)
 			{
 				FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 			}
 		}
-		else FormatEx(trainerStr, maxLength, "%s", gain > 150 ? "                   |" : "|                   ");
+		else FormatEx(trainerStr, maxLength, "%s", strafeSpeed > 150 ? "                   |" : "|                   ");
 	}
 	else	// Slider or target from the opposite direction of turning
 	{
-		char targetOrSliderStr[2] = (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? " |" : "<>";
-		if (50 <= gain <= 150)
+		char targetOrSliderStr[8];
+		Format(targetOrSliderStr, sizeof(targetOrSliderStr), "%s ", (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|" : "<>");
+		if (50 <= strafeSpeed <= 150)
 		{
 			if(angleDiff > 0) 	//Turning left
 			{
@@ -165,7 +202,7 @@ void DrawTrainerHUD(int gain, float angleDiff, int client)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
-				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Insert "|" or <>
+				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Inserting "|" or "<>"
 				for (int i = 0; i <= spaceCount; i++)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
@@ -177,7 +214,7 @@ void DrawTrainerHUD(int gain, float angleDiff, int client)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
-				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Insert "|" or "<>"
+				FormatEx(trainerStr, maxLength, "%s%s", trainerStr, targetOrSliderStr);	// Inserting "|" or "<>"
 				for (int i = 0; i <= 20 - spaceCount; i++)
 				{
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
@@ -185,57 +222,60 @@ void DrawTrainerHUD(int gain, float angleDiff, int client)
 			}
 		}
 		else
-		{	//Turning right with too low gain or turning left with too high gain
-			if((angleDiff < 0 && gain < 50) || (angleDiff > 0 && gain > 150)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? "|                   " : "<>                  ");
-			//Turning left with too low gain or turning right with too high gain
-			else if ((angleDiff > 0 && gain < 50) || (angleDiff < 0 && gain > 150)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode == SLIDER_UPPER || g_bClientTrainerMode == SLIDER_LOWER) ? "                   |" : "                  <>");
+		{
+			//Turning right with too low strafeSpeed or turning left with too high strafeSpeed -> same slider position
+			if((angleDiff < 0 && strafeSpeed < 50) || (angleDiff > 0 && strafeSpeed > 150)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|                   " : "<>                  ");
+			//Turning left with too low strafeSpeed or turning right with too high strafeSpeed -> same slider position
+			else if ((angleDiff > 0 && strafeSpeed < 50) || (angleDiff < 0 && strafeSpeed > 150)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "                   |" : "                  <>");
 		} 
 	}
 
 	char sMessage[256];
-	Format(sMessage, sizeof(sMessage), "%i%%%", gain);
-	Format(sMessage, sizeof(sMessage), "%s\n  ════^════  ", sMessage);
-	Format(sMessage, sizeof(sMessage), "%s\n %s ", sMessage, gainSliderStr);
-	Format(sMessage, sizeof(sMessage), "%s\n  ════^════  ", sMessage);
+	FormatEx(sMessage, sizeof(sMessage), "%s\n  ════^════  ", sMessage);
+	FormatEx(sMessage, sizeof(sMessage), "%s\n %s", sMessage ,trainerStr);
+	FormatEx(sMessage, sizeof(sMessage), "%s\n  ════^════  \n%i%%%%", sMessage, strafeSpeed);
 	
 	Handle hText = CreateHudSynchronizer();
 	if(hText != INVALID_HANDLE)
 	{
 		int rgb[3];
-		if (g_iGainExcellent <= gain <= 200 - g_iGainExcellent) rgb = {0, 255, 255};	// Cyan
-		else if (g_iGainGood <= gain <= 200 - g_iGainGood) rgb = {0, 255, 0}; 		// Green
-		else if(g_iGainBad <= gain <= 200 - g_iGainBad) rgb = {255, 0, 0};		// Red
-		else rgb = {127, 127, 127};							// Gray	
+		if 	(g_istrafeSpeedExcellent <= strafeSpeed <= 200 - g_istrafeSpeedExcellent) 	rgb = {0, 255, 255};		// Cyan
+		else if (g_istrafeSpeedGood 	<= strafeSpeed 	<= 200 - g_istrafeSpeedGood) 		rgb = {0, 255, 0}; 		// Green
+		else if	(g_istrafeSpeedBad 	<= strafeSpeed 	<= 200 - g_istrafeSpeedBad) 		rgb = {255, 0, 0};		// Red
+		else 											rgb = {127, 127, 127};		// Gray	
 
-		SetHudTextParams(-1.0, 0.2, 0.09, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.09);
+
+		SetHudTextParams(-1.0, g_iClientTrainerYPos, 0.11, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.0);
 		ShowSyncHudText(client, hText, sMessage);
 		CloseHandle(hText);
 	}
 }
 
 
-//Stoled from shavit's timer code 
-float GetAngleDiff(float current, float previous)
+float GetAngleDiff(float current, float previous) //Stoled from shavit's timer code 
 {
 	float diff = current - previous;
 	return diff - 360.0 * RoundToFloor((diff + 180.0) / 360.0);
 }
 
 
-float GetPerfectStrafeAngle(float velocity)
+float GetPerfectStrafeAngle(int client)
 {
-	//30 is the maximium wish_speed in source engine
-	return RadToDeg(ArcTangent(30 / velocity));
+	float vecVelocity[2];
+	vecVelocity[0] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[0]");
+	vecVelocity[1] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[1]");
+
+	// Pythagoran to calculate the lenght of velocity vector 
+	// Calculate perfect angle with velocity vector lenght and preferred wish_dir vector lenght
+	// wish_dir lenght of 30 is hardcoded to source engine
+	return RadToDeg(ArcTangent(30 / SquareRoot(vecVelocity[0] * vecVelocity[0] + vecVelocity[1] * vecVelocity[1])));
 }
 
 
-stock void SetClientCookieBool(int client, Handle cookie, bool value)
+float GetNormalizedAngle(float angle)
 {
-	char sValue[8];
-	IntToString(value, sValue, sizeof(sValue));
-}
-
-public void OnClientDisconnect(int client)
-{
-	g_bClientTrainerEnabled[client] = false;
+	float newAngle = angle;
+	while (newAngle <= -180.0) 	newAngle += 360.0;
+	while (newAngle > 180.0) 	newAngle -= 360.0;
+	return newAngle;
 }
