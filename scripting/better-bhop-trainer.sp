@@ -30,11 +30,11 @@ TrainerMode g_bClientTrainerMode[MAXPLAYERS + 1] = {TARGET_UPPER, ...};
 float g_fClientLastAngle[MAXPLAYERS + 1];
 float g_fClientStrafeSpeedSum[MAXPLAYERS + 1];
 int g_iClientTicks[MAXPLAYERS + 1];
-float g_iClientTrainerYPos;
 
-int g_istrafeSpeedExcellent = 85;
-int g_istrafeSpeedGood = 70;
-int g_istrafeSpeedBad = 60;
+const int STRAFE_CUTOFF_SPEED = 50;
+const int STRAFE_SPEED_EXCELLENT = 85;
+const int STRAFE_SPEED_GOOD = 70;
+const int STRAFE_SPEED_BAD = 60;
 
 
 public Plugin myinfo = 
@@ -118,12 +118,6 @@ public Action Command_StrafeTrainer(int client, int argCount)
 		valueInt == 4 ? 	TARGET_UPPER 	:
 		valueInt == 5 ? 	TARGET_MIDDLE 	: 
 					CLASSIC;
-	g_iClientTrainerYPos = 
-		g_bClientTrainerMode[client] == CLASSIC 	|| 
-		g_bClientTrainerMode[client] == SLIDER_UPPER 	|| 
-		g_bClientTrainerMode[client] == TARGET_UPPER 	? 0.15 : 0.405;
-
-
 	SetClientCookie(client, g_hTrainerModeCookie, valueStr);
 
 	Format(valueStr, sizeof(valueStr), "%c", g_bClientTrainerEnabled[client] ? '1' : '0');
@@ -176,7 +170,7 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 	int spaceCount = RoundFloat((float(strafeSpeed) - 50) / 5);
 	if(g_bClientTrainerMode[client] == CLASSIC) // Slider from left to right
 	{
-		if (50 <= strafeSpeed <= 150)
+		if (STRAFE_CUTOFF_SPEED <= strafeSpeed <= 100 + STRAFE_CUTOFF_SPEED)
 		{
 			for (int i = 0; i <= spaceCount + 1; i++)
 			{
@@ -194,7 +188,7 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 	{
 		char targetOrSliderStr[8];
 		Format(targetOrSliderStr, sizeof(targetOrSliderStr), "%s ", (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|" : "<>");
-		if (50 <= strafeSpeed <= 150)
+		if (STRAFE_CUTOFF_SPEED <= strafeSpeed <= 100 + STRAFE_CUTOFF_SPEED)
 		{
 			if(angleDiff > 0) 	//Turning left
 			{
@@ -224,9 +218,9 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 		else
 		{
 			//Turning right with too low strafeSpeed or turning left with too high strafeSpeed -> same slider position
-			if((angleDiff < 0 && strafeSpeed < 50) || (angleDiff > 0 && strafeSpeed > 150)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|                   " : "<>                  ");
+			if((angleDiff < 0 && strafeSpeed < STRAFE_CUTOFF_SPEED) || (angleDiff > 0 && strafeSpeed > 100 + STRAFE_CUTOFF_SPEED)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|                   " : "<>                  ");
 			//Turning left with too low strafeSpeed or turning right with too high strafeSpeed -> same slider position
-			else if ((angleDiff > 0 && strafeSpeed < 50) || (angleDiff < 0 && strafeSpeed > 150)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "                   |" : "                  <>");
+			else if ((angleDiff > 0 && strafeSpeed < STRAFE_CUTOFF_SPEED) || (angleDiff < 0 && strafeSpeed > 100 + STRAFE_CUTOFF_SPEED)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "                   |" : "                  <>");
 		} 
 	}
 
@@ -239,12 +233,16 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 	if(handle != INVALID_HANDLE)
 	{
 		int rgb[3];
-		if 	(g_istrafeSpeedExcellent <= strafeSpeed <= 200 - g_istrafeSpeedExcellent) 	rgb = {0, 255, 255};		// Cyan
-		else if (g_istrafeSpeedGood 	<= strafeSpeed 	<= 200 - g_istrafeSpeedGood) 		rgb = {0, 255, 0}; 		// Green
-		else if	(g_istrafeSpeedBad 	<= strafeSpeed 	<= 200 - g_istrafeSpeedBad) 		rgb = {255, 0, 0};		// Red
+		if 	(STRAFE_SPEED_EXCELLENT <= strafeSpeed <= 200 - STRAFE_SPEED_EXCELLENT) 	rgb = {0, 255, 255};		// Cyan
+		else if (STRAFE_SPEED_GOOD 	 <= strafeSpeed <= 200 - STRAFE_SPEED_GOOD) 		rgb = {0, 255, 0}; 		// Green
+		else if	(STRAFE_SPEED_BAD 	 <= strafeSpeed <= 200 - STRAFE_SPEED_BAD) 		rgb = {255, 0, 0};		// Red
 		else 											rgb = {127, 127, 127};		// Gray	
 
-		SetHudTextParams(-1.0, g_iClientTrainerYPos, 0.11, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.0);
+		SetHudTextParams(-1.0, 		
+			g_bClientTrainerMode[client] == CLASSIC 	|| 
+			g_bClientTrainerMode[client] == SLIDER_UPPER 	|| 
+			g_bClientTrainerMode[client] == TARGET_UPPER 	? 0.15 : 0.405, 
+			0.11, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.0);
 		ShowSyncHudText(client, handle, sMessage);
 		CloseHandle(handle);
 	}
