@@ -49,8 +49,8 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {	
-	EngineVersion g_Game = GetEngineVersion();
-	if(!(g_Game != Engine_CSGO || g_Game != Engine_CSS))
+	EngineVersion gameEngine = GetEngineVersion();
+	if(!(gameEngine != Engine_CSGO || gameEngine != Engine_CSS))
 	{
 		SetFailState("Wrong engine found! This plugin is for CSGO/CSS only.");	
 	}
@@ -235,8 +235,8 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 	FormatEx(sMessage, sizeof(sMessage), "%s\n %s", sMessage ,trainerStr);
 	FormatEx(sMessage, sizeof(sMessage), "%s\n  ════^════  \n%i%%%%", sMessage, strafeSpeed);
 	
-	Handle hText = CreateHudSynchronizer();
-	if(hText != INVALID_HANDLE)
+	Handle handle = CreateHudSynchronizer();
+	if(handle != INVALID_HANDLE)
 	{
 		int rgb[3];
 		if 	(g_istrafeSpeedExcellent <= strafeSpeed <= 200 - g_istrafeSpeedExcellent) 	rgb = {0, 255, 255};		// Cyan
@@ -244,10 +244,9 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 		else if	(g_istrafeSpeedBad 	<= strafeSpeed 	<= 200 - g_istrafeSpeedBad) 		rgb = {255, 0, 0};		// Red
 		else 											rgb = {127, 127, 127};		// Gray	
 
-
 		SetHudTextParams(-1.0, g_iClientTrainerYPos, 0.11, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.0);
-		ShowSyncHudText(client, hText, sMessage);
-		CloseHandle(hText);
+		ShowSyncHudText(client, handle, sMessage);
+		CloseHandle(handle);
 	}
 }
 
