@@ -142,7 +142,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if ((GetEntityMoveType(client) == MOVETYPE_NOCLIP) || (GetEntityMoveType(client) == MOVETYPE_LADDER))
 		return Plugin_Continue;
 
-	// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed for given tick 
+	// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed or DIVIDED with the per prestrafe angle if client is on ground
 	// Simply: Δangle / perfAngle
 	float currentStrafeSpeed = 0.0;
 	if(GetEntityFlags(client) & FL_ONGROUND) currentStrafeSpeed = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
@@ -151,11 +151,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if (g_iClientTicks[client] < CALCULATION_TICK_INTERVAL)
 	{
 		g_fClientStrafeSpeedSum[client] += currentStrafeSpeed;
-		g_iClientTicks[client]++;		// Increment client's tick count	
+		g_iClientTicks[client]++;		// Increment client's tick count
 	} 
 	else
 	{
-		DrawTrainerHUD(RoundFloat(g_fClientStrafeSpeedSum[client] / (g_iClientTicks[client])), GetAngleDiff(angles[1], g_fClientLastAngle[client]), client);
+		DrawTrainerHUD(RoundFloat(g_fClientStrafeSpeedSum[client] / (g_iClientTicks[client])), GetTurnDirection(angles[1], g_fClientLastAngle[client]), client);
 		g_fClientStrafeSpeedSum[client] = 0.0;
 		g_iClientTicks[client] = 0;	// Reset client's tick count
 	}
@@ -163,7 +163,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 }	
 
 
-void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
+void DrawTrainerHUD(int strafeSpeed, int turnDirection, int client)
 {	
 	char trainerStr[32];
 	int maxLength = sizeof(trainerStr);
@@ -190,7 +190,7 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 		Format(targetOrSliderStr, sizeof(targetOrSliderStr), "%s ", (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|" : "<>");
 		if (STRAFE_CUTOFF_SPEED <= strafeSpeed <= 100 + STRAFE_CUTOFF_SPEED)
 		{
-			if(angleDiff > 0) 	//Turning left
+			if(turnDirection > 0) 	//Turning left
 			{
 				for (int i = 0; i <= 20 - spaceCount; i++)
 				{
@@ -202,7 +202,7 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 					FormatEx(trainerStr, maxLength, "%s ", trainerStr);
 				}
 			}
-			else if (angleDiff < 0)	//Turning right
+			else if (turnDirection < 0)	//Turning right
 			{
 				for (int i = 0; i <= spaceCount; i++)
 				{
@@ -218,9 +218,9 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 		else
 		{
 			//Turning right with too low strafeSpeed or turning left with too high strafeSpeed -> same slider position
-			if((angleDiff < 0 && strafeSpeed < STRAFE_CUTOFF_SPEED) || (angleDiff > 0 && strafeSpeed > 100 + STRAFE_CUTOFF_SPEED)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|                   " : "<>                  ");
+			if((turnDirection < 0 && strafeSpeed < STRAFE_CUTOFF_SPEED) || (turnDirection > 0 && strafeSpeed > 100 + STRAFE_CUTOFF_SPEED)) 	FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "|                   " : "<>                  ");
 			//Turning left with too low strafeSpeed or turning right with too high strafeSpeed -> same slider position
-			else if ((angleDiff > 0 && strafeSpeed < STRAFE_CUTOFF_SPEED) || (angleDiff < 0 && strafeSpeed > 100 + STRAFE_CUTOFF_SPEED)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "                   |" : "                  <>");
+			else if ((turnDirection > 0 && strafeSpeed < STRAFE_CUTOFF_SPEED) || (turnDirection < 0 && strafeSpeed > 100 + STRAFE_CUTOFF_SPEED)) FormatEx(trainerStr, maxLength, "%s",  (g_bClientTrainerMode[client] == SLIDER_UPPER || g_bClientTrainerMode[client] == SLIDER_LOWER) ? "                   |" : "                  <>");
 		} 
 	}
 
@@ -238,21 +238,33 @@ void DrawTrainerHUD(int strafeSpeed, float angleDiff, int client)
 		else if	(STRAFE_SPEED_BAD 	 <= strafeSpeed <= 200 - STRAFE_SPEED_BAD) 		rgb = {255, 0, 0};		// Red
 		else 											rgb = {127, 127, 127};		// Gray	
 
-		SetHudTextParams(-1.0, 		
-			g_bClientTrainerMode[client] == CLASSIC 	|| 
-			g_bClientTrainerMode[client] == SLIDER_UPPER 	|| 
-			g_bClientTrainerMode[client] == TARGET_UPPER 	? 0.15 : 0.405, 
-			0.11, rgb[0], rgb[1], rgb[2], 255, 0, 0.0, 0.0, 0.0);
+		SetHudTextParams(
+			-1.0,	// Horizontally aligned to middle
+			g_bClientTrainerMode[client] == CLASSIC 	||
+			g_bClientTrainerMode[client] == SLIDER_UPPER 	||
+			g_bClientTrainerMode[client] == TARGET_UPPER 	? 0.15 : 0.405,	// Either lower or upper position
+			0.11,	// Visualisation holdtime
+			rgb[0], // R value
+			rgb[1], // G value
+			rgb[2], // B value
+			255,	// Opacity value
+			0,	// No fade effect
+			0.0,	// No special effect time
+			0.0,	// No fade in time
+			0.0	// No fade out time
+		);
 		ShowSyncHudText(client, handle, sMessage);
 		CloseHandle(handle);
 	}
 }
 
 
-float GetAngleDiff(float current, float previous) //Stoled from shavit's timer code 
+int GetTurnDirection(float curAngle, float prvAngle)
 {
-	float diff = current - previous;
-	return diff - 360.0 * RoundToFloor((diff + 180.0) / 360.0);
+	float angleDiff = curAngle - prvAngle;
+	return 	angleDiff > 	0.0 	?  1 : 
+		angleDiff <	0.0 	? -1 : 
+				   	   0;
 }
 
 
