@@ -39,10 +39,10 @@ const int STRAFE_SPEED_BAD = 60;
 
 public Plugin myinfo = 
 {
-	name = "better bhop strafe trainer",
+	name = "Better Bhop Strafe Trainer",
 	author = "Wessmaker",
 	description = "A better bhop strafe trainer",
-	version = "0.1",
+	version = "1.0",
 	url = "https://github.com/wessmaker/better-bhop-trainer"
 };
 
