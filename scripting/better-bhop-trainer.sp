@@ -94,35 +94,33 @@ public Action Command_StrafeTrainer(int client, int argCount)
 
 	char valueStr[8];
 	GetCmdArgString(valueStr, sizeof(valueStr));
-	int valueInt = StringToInt(valueStr);
+	int argument = StringToInt(valueStr);
 
-	if(!g_bClientTrainerEnabled[client] && valueInt == 0)
+	if(!g_bClientTrainerEnabled[client] && argument == 0)
 	{
 		ReplyToCommand(client, "To enable strafe trainer add mode as argument to command! \n1 CLASSIC\n2 SLIDER_UPPER\n3 SLIDER_LOWER\n4 TARGET_UPPER\n5 TARGET_MIDDLE");
 		return Plugin_Handled;
 	}
-	else if (valueInt == 0)
+	else if (argument == 0)
 	{
 		g_bClientTrainerEnabled[client] = false;
 		SetClientCookie(client, g_hTainerEnabledCookie, "0");
-		ReplyToCommand(client, "[SM] Strafe Trainer disabled! %s", valueStr);
+		ReplyToCommand(client, "[SM] Strafe Trainer disabled!");
 		return Plugin_Handled;
 	}
-	
 
 	g_bClientTrainerEnabled[client] = true;
 	g_bClientTrainerMode[client] = 
-		valueInt == 1 ? 	CLASSIC 	:
-		valueInt == 2 ? 	SLIDER_UPPER 	:
-		valueInt == 3 ? 	SLIDER_LOWER 	:
-		valueInt == 4 ? 	TARGET_UPPER 	:
-		valueInt == 5 ? 	TARGET_MIDDLE 	: 
+		argument == 1 ? 	CLASSIC 	:
+		argument == 2 ? 	SLIDER_UPPER 	:
+		argument == 3 ? 	SLIDER_LOWER 	:
+		argument == 4 ? 	TARGET_UPPER 	:
+		argument == 5 ? 	TARGET_MIDDLE 	: 
 					CLASSIC;
 	SetClientCookie(client, g_hTrainerModeCookie, valueStr);
 
 	Format(valueStr, sizeof(valueStr), "%c", g_bClientTrainerEnabled[client] ? '1' : '0');
 	SetClientCookie(client, g_hTainerEnabledCookie, valueStr);
-
 	ReplyToCommand(client, "[SM] Strafe Trainer enabled! Mode: %s", 
 		g_bClientTrainerMode[client] == CLASSIC 	? 	"CLASSIC" 	: 
 		g_bClientTrainerMode[client] == SLIDER_UPPER 	? 	"SLIDER_UPPER"	: 
