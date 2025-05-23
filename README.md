@@ -1,4 +1,4 @@
-# better-bhop-trainer
+# better-bhop-strafe-trainer
 
 ### A better server side bhop strafe trainer for CS:S && CS:GO
 
@@ -17,6 +17,8 @@
 
 ### Usage
 
+Once installed type following to console
+
 ```cmd
 sm_strafetrainer <mode>
 ```
@@ -29,19 +31,15 @@ sm_strafetrainer <mode>
 | 4    | TARGET_UPPER |
 | 5    | TARGET_LOWER |
 
+> Note that at the moment of writing this has to be done every time client reconnects or map changes due to bug which will be fixed once I have time
+
 ---
 
-### Demos
+### Demo video links (youtube)
 
-#### Different strafe trainer modes
+[Different strafe trainer modes](https://www.youtube.com/watch?v=nBEFEU2gIcY)
 
-<video controls src="demos/better_bhop_strafe_trainer_demo1.mp4" title="Strafe trainer demo"></video>
-
-#### The prespeed indicator
-
-## <video controls src="demos/perfect_prespeed_demo1.mp4" title="Perfect prespeed demo"></video>
-
-> And yes prespeed indicator works with all modes
+[Prespeed indicator](https://www.youtube.com/watch?v=Itg-NgfPNAU)
 
 ---
 
@@ -49,6 +47,6 @@ sm_strafetrainer <mode>
 
 > It's recommended to use mode 1 (CLASSIC) or 5 (TARGET_LOWER)
 
-> Feel free to create github issue to give suggestions for new features or styles because I will most likely add them
+> Feel free to create github issue to give suggestions for new features or styles because I will most likely add them if I have time
 
 > And also special thanks to **YvngxChrig** for supplying the perfect prespeed angle value on sourcejump discord server
