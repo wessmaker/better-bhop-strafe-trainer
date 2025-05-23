@@ -31,7 +31,7 @@ sm_strafetrainer <mode>
 | 4    | TARGET_UPPER |
 | 5    | TARGET_LOWER |
 
-> Note that at the moment of writing this has to be done every time client reconnects or map changes due to bug which will be fixed once I have time
+> Note that at the moment of writing this the command has to be executed every time client reconnects or map changes due to bug which will be fixed once I have time
 
 ---
 
