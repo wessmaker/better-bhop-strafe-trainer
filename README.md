@@ -6,12 +6,28 @@
 
 ### Features
 
-- Prespeed indicator when client is on ground (max speed of 290u/s) with different modes
+- General improvements
+
+  - 5 indicator modes
+  - Improved indicator responsiveness
+  - Refactored codebase to remove unnecessary and slow code
+  - Added perfect prespeed indicator
+
+- Perfect prespeed indicator
+
+  - Indicates how close the client's turn angle is to the perfect turn angle to get max 290u/s prespeed
+  - Active when client is on ground
+  - Extremely accurate and works on every indicator mode
+  - [Demo video](https://www.youtube.com/watch?v=Itg-NgfPNAU)
+
+- Strafe speed indicator
+- Indicates how close the client's turn angle is to the perfect turn angle for given speed
 - 2 different positions for modern indicators
 - 3 different strafe speed indicator styles
   - CLASSIC - The good old one which goes from left to right
   - SLIDER - Same as CLASSIC but direction depends on which way you are turning
   - TARGET - Same as SLIDER but uses "<>" as indicator
+  - [Demo video](https://www.youtube.com/watch?v=nBEFEU2gIcY)
 
 ---
 
