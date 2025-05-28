@@ -25,6 +25,7 @@ Handle g_hTainerEnabledCookie;
 Handle g_hTrainerModeCookie;
 
 bool g_bClientTrainerEnabled[MAXPLAYERS + 1] = {false, ...};
+int g_iClientOnGroundTicks[MAXPLAYERS + 1];
 TrainerMode g_bClientTrainerMode[MAXPLAYERS + 1] = {TARGET_UPPER, ...};
 
 float g_fClientLastAngle[MAXPLAYERS + 1];
@@ -142,10 +143,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 	// Calculating client's horizontal angle difference from last tick DIVIDED by perfect angle for given speed or DIVIDED with the per prestrafe angle if client is on ground
 	// Simply: Δangle / perfAngle
-	float currentStrafeSpeed = 0.0;
-	if(GetEntityFlags(client) & FL_ONGROUND) currentStrafeSpeed = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100;
-	else currentStrafeSpeed = FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(client) * 100;
-
+	float currentStrafeSpeed = IsClientOnGround(client) == true ? 
+		FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / PERFECT_PRESTRAFE_ANGLE * 100 
+		:
+		FloatAbs(GetNormalizedAngle(g_fClientLastAngle[client] - angles[1])) / GetPerfectStrafeAngle(client) * 100;
 	if (g_iClientTicks[client] < CALCULATION_TICK_INTERVAL)
 	{
 		g_fClientStrafeSpeedSum[client] += currentStrafeSpeed;
@@ -254,6 +255,22 @@ void DrawTrainerHUD(int strafeSpeed, int turnDirection, int client)
 		ShowSyncHudText(client, handle, sMessage);
 		CloseHandle(handle);
 	}
+}
+
+
+bool IsClientOnGround(int client)
+{
+	if (g_iClientOnGroundTicks[client] < 5 && GetEntityFlags(client) & FL_ONGROUND) 
+	{
+		g_iClientOnGroundTicks[client]++;
+		return false;	// Client has not been long enough on ground
+	}
+	else if (!(GetEntityFlags(client) & FL_ONGROUND))
+	{
+		g_iClientOnGroundTicks[client] = 0;
+		return false;	// Client is on air
+	}
+	else return true;	//Client has been on ground long enough
 }
 
 
