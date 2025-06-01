@@ -4,6 +4,16 @@
 
 > This plugin is a remastered version of the OG [strafe trainer](https://github.com/PaxPlay/bhop-strafe-trainer/) by PaxPlay
 
+### Usage
+
+Download [latest release](https://github.com/wessmaker/better-bhop-strafe-trainer/releases/tag/v1.1-beta) and copy the `better-bhop-trainer.smx` file to your `addons\sourcemod\plugins` folder
+
+Once installed type following to console
+
+```cmd
+sm_strafetrainer <mode>
+```
+
 ### Features
 
 - General improvements
@@ -30,14 +40,6 @@
   - [Demo video](https://www.youtube.com/watch?v=nBEFEU2gIcY)
 
 ---
-
-### Usage
-
-Once installed type following to console
-
-```cmd
-sm_strafetrainer <mode>
-```
 
 | Mode | Name         |
 | ---- | ------------ |
